@@ -130,6 +130,39 @@ private:
      */
     bool IsOverlap(const pandora::Cluster *const pCluster1, const pandora::Cluster *const pCluster2) const;
 
+    /**                                                                                                                                                               
+     *  @brief Calculate effective overlap fractions taking into account gaps
+     *
+     *  @param  pCluster1 address of the first cluster    
+     *  @param  xMin1,xMax1 min and max values of x of the first cluster
+     *  @param  pCluster2 address of the second cluster   
+     *  @param  xMin2, xMax2 min and max values of x of the second cluster
+     *  @param  xOverlapFraction1 to receive the effective overlap fraction for the first cluster
+     *  @param  xOverlapFraction2 to receive the effective overlap fraction for the second cluster
+     */
+    void CalculateEffectiveOverlapFractions(const pandora::Cluster *const pCluster1, float &xMin1, float &xMax1,const pandora::Cluster *const pCluster2, float &xMin2, float &xMax2, float &xOverlapFraction1, float &xOverlapFraction2) const;
+    
+    /**                                                                                                                                                                
+     *  @brief Calculate effective span for a given clsuter taking gaps into account
+     *  @param  pCluster1 address of the cluster
+     *  @param  xMinEff, xMaxEff to receive the effective limits of the cluster, including adjacent gaps
+     *  @param  xMin, xMax the limits within checks for gaps will be performed
+     */
+    void CalculateEffectiveSpan(const pandora::Cluster *const pCluster, float &xMinEff, float &xMaxEff, const float &xMin, const float &xMax) const;
+
+    /**                                                                                                                                                                
+     *  @brief Whether there is a gap in the xSample position for cluster1 or cluster2
+     *  @param  pCluster address of the cluster 
+     */
+    bool PassesGapsChecks(const float &xSample, const pandora::Cluster *const pCluster) const;
+
+    /**
+     * @brief Whether there is a gap at xSample in the view of the cluster, extrapolating from its extremes
+     * @param pCluster address of the cluster
+     * @param slidingFitResult for the cluster
+     */
+    bool CheckGaps(const float &xSample, const pandora::Cluster *const pCluster, const TwoDSlidingFitResult &slidingFitResult) const;
+
     /**
      *  @brief Calculate effective overlap fractions taking into account gaps
      *
@@ -186,6 +219,11 @@ private:
     pandora::StringVector       m_inputClusterListNames;        ///< The list of cluster list names
     std::string                 m_outputPfoListName;            ///< The output pfo list name
 
+<<<<<<< HEAD
+=======
+    bool                        m_includeTracks;                ///< Whether to include fixed tracks in selected cluster list
+    bool                        m_includeShowers;               ///< Whether to include clusters not fixed as tracks in selected cluster list
+>>>>>>> ecfb577aae0a1a072cf24a4235f3e9901dc85cb9
     bool                        m_checkGaps;                    ///< Whether to check for gaps in the calculation of the overlap
 
     unsigned int                m_minClusterCaloHits;           ///< The min number of hits in base cluster selection method
