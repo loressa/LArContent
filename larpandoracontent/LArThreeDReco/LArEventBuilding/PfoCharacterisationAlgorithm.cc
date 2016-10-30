@@ -24,7 +24,9 @@ namespace lar_content
 {
 
 PfoCharacterisationAlgorithm::PfoCharacterisationAlgorithm() :
-    m_writeToTree(false)
+  m_writeToTree(false),
+  m_sampleStepSizeX(0.5f),
+  m_sampleStepSizeZ(0.5f)
 {
 }
 
@@ -167,6 +169,19 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
     int nPointsOfContactU(0), nPointsOfContactV(0), nPointsOfContactW(0);
     int nHitsInBranchesU(0), nHitsInBranchesV(0), nHitsInBranchesW(0);
 
+    //LORENA
+    float hitDensityU(-1.f), hitDensityV(-1.f), hitDensityW(-1.f);
+
+    float fractionMutipleZforXU(-1.f), fractionMutipleZforXV(-1.f), fractionMutipleZforXW(-1.f);
+    float fractionMutipleXforZU(-1.f), fractionMutipleXforZV(-1.f), fractionMutipleXforZW(-1.f);
+
+    int hitsOutsideSlidingLimitsU(0), hitsOutsideSlidingLimitsV(0), hitsOutsideSlidingLimitsW(0);
+
+    float widthDirectionXU(-1.f), widthDirectionXV(-1.f), widthDirectionXW(-1.f); 
+    float widthDirectionZU(-1.f), widthDirectionZV(-1.f), widthDirectionZW(-1.f); 
+
+    //calculation
+
     ClusterList twoDClusterList;
     LArPfoHelper::GetTwoDClusterList(pPfo, twoDClusterList);
 
@@ -204,29 +219,15 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
 
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "vertexDistance" + hitTypeLabel, vertexDistance));
 
-        // hit positions and energy
-        FloatVector &xPositions((TPC_VIEW_U == hitType) ? xPositionsU : (TPC_VIEW_V == hitType) ? xPositionsV : xPositionsW);
-        FloatVector &zPositions((TPC_VIEW_U == hitType) ? zPositionsU : (TPC_VIEW_V == hitType) ? zPositionsV : zPositionsW);
-        float &mipEnergy((TPC_VIEW_U == hitType) ? mipEnergyU : (TPC_VIEW_V == hitType) ? mipEnergyV : mipEnergyW);
-
-        CaloHitList clusterHitList;
-        pCluster->GetOrderedCaloHitList().FillCaloHitList(clusterHitList);
-
-        for (const CaloHit *const pCaloHit : clusterHitList)
-        {
-            xPositions.push_back(pCaloHit->GetPositionVector().GetX());
-            zPositions.push_back(pCaloHit->GetPositionVector().GetZ());
-            mipEnergy += pCaloHit->GetMipEquivalentEnergy();
-        }
-
-        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "xPositions" + hitTypeLabel, &xPositions));
-        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "zPositions" + hitTypeLabel, &zPositions));
-        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "mipEnergy" + hitTypeLabel, mipEnergy));
-
         // straight line length and integrated pathlength
         float &straightLineLength((TPC_VIEW_U == hitType) ? straightLineLengthU : (TPC_VIEW_V == hitType) ? straightLineLengthV : straightLineLengthW);
         float &integratedPathLength((TPC_VIEW_U == hitType) ? integratedPathLengthU : (TPC_VIEW_V == hitType) ? integratedPathLengthV : integratedPathLengthW);
 
+	//LORENA - min,max
+	float xMin(0.f), xMax(0.f), zMin(0.f), zMax(0.f);
+	float minXDir(+std::numeric_limits<float>::max()), minZDir(+std::numeric_limits<float>::max());
+	float maxXDir(-std::numeric_limits<float>::max()), maxZDir(-std::numeric_limits<float>::max());
+	
         try
         {
             const TwoDSlidingFitResult slidingFitResult(pCluster, 5, LArGeometryHelper::GetWireZPitch(this->GetPandora()));
@@ -234,16 +235,35 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
             const CartesianVector globalMaxLayerPosition(slidingFitResult.GetGlobalMaxLayerPosition());
             straightLineLength = (globalMaxLayerPosition - globalMinLayerPosition).GetMagnitude();
 
+	    //LORENA
+	    xMin = ((globalMinLayerPosition.GetX()<globalMaxLayerPosition.GetX()) ? globalMinLayerPosition.GetX() : globalMaxLayerPosition.GetX());
+	    xMax = ((globalMinLayerPosition.GetX()>globalMaxLayerPosition.GetX()) ? globalMinLayerPosition.GetX() : globalMaxLayerPosition.GetX());
+	    zMin = ((globalMinLayerPosition.GetZ()<globalMaxLayerPosition.GetZ()) ? globalMinLayerPosition.GetZ() : globalMaxLayerPosition.GetZ());
+	    zMax = ((globalMinLayerPosition.GetZ()>globalMaxLayerPosition.GetZ()) ? globalMinLayerPosition.GetZ() : globalMaxLayerPosition.GetZ());
+
             integratedPathLength = 0.f;
             CartesianVector previousFitPosition(globalMinLayerPosition);
             const LayerFitResultMap &layerFitResultMap(slidingFitResult.GetLayerFitResultMap());
 
             for (const auto &mapEntry : layerFitResultMap)
             {
-                CartesianVector thisFitPosition(0.f, 0.f, 0.f);
-                slidingFitResult.GetGlobalPosition(mapEntry.second.GetL(), mapEntry.second.GetFitT(), thisFitPosition);
-                integratedPathLength += (thisFitPosition - previousFitPosition).GetMagnitude();
-                previousFitPosition = thisFitPosition;
+	      CartesianVector thisFitPosition(0.f, 0.f, 0.f), thisFitDirection(0.f, 0.f, 0.f);//LORENA
+	      slidingFitResult.GetGlobalPosition(mapEntry.second.GetL(), mapEntry.second.GetFitT(), thisFitPosition);
+	      slidingFitResult.GetGlobalFitDirection(mapEntry.second.GetL(), thisFitDirection);//LORENA
+
+	      integratedPathLength += (thisFitPosition - previousFitPosition).GetMagnitude();
+	      previousFitPosition = thisFitPosition;
+	      //LORENA
+	      //TODO: more sophisticated, like using RMS instead 
+	      if(thisFitDirection.GetX()<minXDir)
+		minXDir=thisFitDirection.GetX();
+	      if(thisFitDirection.GetX()>maxXDir)
+		maxXDir=thisFitDirection.GetX();
+	      if(thisFitDirection.GetZ()<minZDir)
+		minZDir=thisFitDirection.GetZ();
+	      if(thisFitDirection.GetZ()>maxZDir)
+		maxZDir=thisFitDirection.GetZ();
+
             }
         }
         catch (const StatusCodeException &)
@@ -253,8 +273,19 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "straightLineLength" + hitTypeLabel, straightLineLength));
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "integratedPathLength" + hitTypeLabel, integratedPathLength));
 
+	//LORENA
+	float &widthDirectionX((TPC_VIEW_U == hitType) ? widthDirectionXU : (TPC_VIEW_V == hitType) ? widthDirectionXV : widthDirectionXW);
+	float &widthDirectionZ((TPC_VIEW_U == hitType) ? widthDirectionZU : (TPC_VIEW_V == hitType) ? widthDirectionZV : widthDirectionZW);
+
+	widthDirectionX=maxXDir-minXDir;
+	widthDirectionZ=maxXDir-minXDir;
+
+	PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "widthDirectionX" + hitTypeLabel, widthDirectionX));
+	PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "widthDirectionZ" + hitTypeLabel, widthDirectionZ));
+
         float &straightLineLength10((TPC_VIEW_U == hitType) ? straightLineLength10U : (TPC_VIEW_V == hitType) ? straightLineLength10V : straightLineLength10W);
         float &integratedPathLength10((TPC_VIEW_U == hitType) ? integratedPathLength10U : (TPC_VIEW_V == hitType) ? integratedPathLength10V : integratedPathLength10W);
+
 
         try
         {
@@ -281,6 +312,55 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
 
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "straightLineLength10" + hitTypeLabel, straightLineLength10));
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "integratedPathLength10" + hitTypeLabel, integratedPathLength10));
+
+	//LORENA
+	//sampling points and 2D grid for finding fraction of x,z positions with multiple values of z,x 
+	const unsigned int nSamplingPointsX(1 + static_cast<int>((xMax - xMin) / m_sampleStepSizeX));
+	const unsigned int nSamplingPointsZ(1 + static_cast<int>((zMax - zMin) / m_sampleStepSizeZ));
+	//TODO - I need a better way for 2D grid
+	std::vector<unsigned int> v(1000,0);
+	std::vector<std::vector<unsigned int> > gridXZ(1000,v);
+	//	std::cout << " xMax = " << xMax << " xMin = " << xMin << " zMax = " << zMax << " zMin = " << zMin << std::endl;
+	//	std::cout << " nSamplingPointsX = " << nSamplingPointsX << " , nSamplingPointsZ = " << nSamplingPointsZ << std::endl;
+        // hit positions and energy
+        FloatVector &xPositions((TPC_VIEW_U == hitType) ? xPositionsU : (TPC_VIEW_V == hitType) ? xPositionsV : xPositionsW);
+        FloatVector &zPositions((TPC_VIEW_U == hitType) ? zPositionsU : (TPC_VIEW_V == hitType) ? zPositionsV : zPositionsW);
+        float &mipEnergy((TPC_VIEW_U == hitType) ? mipEnergyU : (TPC_VIEW_V == hitType) ? mipEnergyV : mipEnergyW);
+
+	int &hitsOutsideSlidingLimits((TPC_VIEW_U == hitType) ? hitsOutsideSlidingLimitsU : (TPC_VIEW_V == hitType) ?  hitsOutsideSlidingLimitsV : hitsOutsideSlidingLimitsW);
+
+        CaloHitList clusterHitList;
+        pCluster->GetOrderedCaloHitList().FillCaloHitList(clusterHitList);
+
+        for (const CaloHit *const pCaloHit : clusterHitList)
+        {
+            xPositions.push_back(pCaloHit->GetPositionVector().GetX());
+            zPositions.push_back(pCaloHit->GetPositionVector().GetZ());
+            mipEnergy += pCaloHit->GetMipEquivalentEnergy();
+	    //LORENA - fill the 2D grid
+	    if((pCaloHit->GetPositionVector().GetX()>xMax)||
+	       (pCaloHit->GetPositionVector().GetX()<xMin)||
+	       (pCaloHit->GetPositionVector().GetZ()>zMax)||
+	       (pCaloHit->GetPositionVector().GetZ()<zMin))
+	      {
+		hitsOutsideSlidingLimits++;
+	      }
+	    else
+	      {
+		const unsigned int indexX(static_cast<int>((pCaloHit->GetPositionVector().GetX() - xMin) / m_sampleStepSizeX));
+		const unsigned int indexZ(static_cast<int>((pCaloHit->GetPositionVector().GetZ() - zMin) / m_sampleStepSizeZ));
+		//		std::cout << " hit in X = " << pCaloHit->GetPositionVector().GetX() << " and Z = " << pCaloHit->GetPositionVector().GetZ() << " so indexX = " << indexX << " indexZ = " << indexZ << std::endl;
+		if((indexX<1000)&&(indexZ<1000))
+		  gridXZ[indexX][indexZ] = gridXZ[indexX][indexZ]+1;
+	      }
+        }
+
+        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "xPositions" + hitTypeLabel, &xPositions));
+        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "zPositions" + hitTypeLabel, &zPositions));
+        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "mipEnergy" + hitTypeLabel, mipEnergy));
+
+        PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "hitsOutsideSlidingLimits" + hitTypeLabel, hitsOutsideSlidingLimits));
+
 
         // shower fit width and gap length
         float &showerFitWidth((TPC_VIEW_U == hitType) ? showerFitWidthU : (TPC_VIEW_V == hitType) ? showerFitWidthV : showerFitWidthW);
@@ -390,7 +470,56 @@ bool PfoCharacterisationAlgorithm::IsClearTrack(const ParticleFlowObject *const 
 
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "nPointsOfContact" + hitTypeLabel, nPointsOfContact));
         PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "nHitsInBranches" + hitTypeLabel, nHitsInBranches));
+
+	//LORENA
+	//hit density 
+	float &hitDensity((TPC_VIEW_U == hitType) ? hitDensityU : (TPC_VIEW_V == hitType) ? hitDensityV : hitDensityW );
+	float area(showerFitWidth*straightLineLength);
+	hitDensity = static_cast<float>(nHits)/area;
+	if(hitDensity > 100)//Achtung! few very large values destroying the world!
+	  continue;
+	PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "hitDensity" + hitTypeLabel, hitDensity));
+
+	//fraction multiple positions
+	unsigned int columnsMultipleZ(0), rowsMultipleX(0);
+	unsigned int limitx = std::min(static_cast<unsigned int>(1000),nSamplingPointsX);
+	unsigned int limitz = std::min(static_cast<unsigned int>(1000),nSamplingPointsZ);
+
+	for (unsigned int i = 0; i < limitx; ++i)
+	  {
+	    unsigned int counter(0);
+	    for (unsigned int j = 0; j < limitz; ++j)
+	      {
+		if(gridXZ[i][j]>0)
+		  counter++;
+	      }
+	    if(counter>1)
+	      columnsMultipleZ++;
+	  }
+
+	for (unsigned int i = 0; i < limitz; ++i)
+	  {
+	    unsigned int counter(0);
+	    for (unsigned int j = 0; j < limitx; ++j)
+	      {
+		if(gridXZ[j][i]>0)
+		  counter++;
+	      }
+	    if(counter>1)
+	      rowsMultipleX++;
+	  }
+
+	float &fractionMutipleZforX((TPC_VIEW_U == hitType) ? fractionMutipleZforXU : (TPC_VIEW_V == hitType) ? fractionMutipleZforXV : fractionMutipleZforXW );
+	float &fractionMutipleXforZ((TPC_VIEW_U == hitType) ? fractionMutipleXforZU : (TPC_VIEW_V == hitType) ? fractionMutipleXforZV : fractionMutipleXforZW );
+
+	fractionMutipleZforX=(static_cast<float>(columnsMultipleZ))/(static_cast<float>(nSamplingPointsX));                         
+	fractionMutipleXforZ=(static_cast<float>(rowsMultipleX))/(static_cast<float>(nSamplingPointsZ));
+
+	PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "fractionMutipleZforX" + hitTypeLabel, fractionMutipleZforX));
+	PANDORA_MONITORING_API(SetTreeVariable(this->GetPandora(), m_treeName.c_str(), "fractionMutipleXforZ" + hitTypeLabel, fractionMutipleXforZ));
+
     }
+
 
     PANDORA_MONITORING_API(FillTree(this->GetPandora(), m_treeName.c_str()));
 
@@ -446,6 +575,19 @@ StatusCode PfoCharacterisationAlgorithm::ReadSettings(const TiXmlHandle xmlHandl
         PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, XmlHelper::ReadValue(xmlHandle, "OutputTree", m_treeName));
         PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, XmlHelper::ReadValue(xmlHandle, "OutputFile", m_fileName));
     }
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,         
+	  "SampleStepSizeX", m_sampleStepSizeX));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,         
+	  "SampleStepSizeZ", m_sampleStepSizeZ));
+
+    if ((m_sampleStepSizeX < std::numeric_limits<float>::epsilon()) || (m_sampleStepSizeZ < std::numeric_limits<float>::epsilon())) 
+      {                                                                                                                         
+	std::cout << "PfoCharacterisationAlgorithm: Invalid value for SampleStepSize " << m_sampleStepSizeX << " , " << m_sampleStepSizeZ << std::endl;             
+        throw StatusCodeException(STATUS_CODE_INVALID_PARAMETER);                                                              
+      }   
+
 
     return STATUS_CODE_SUCCESS;
 }

@@ -61,6 +61,8 @@ private:
     std::string             m_clusterListNameW;         ///< The w cluster list name
 
     bool                    m_writeToTree;              ///< Whether to write monitoring details to tree
+    float                   m_sampleStepSizeX;          ///< The sampling step size used in association checks, units cm 
+    float                   m_sampleStepSizeZ;          ///< The sampling step size used in association checks, units cm 
     std::string             m_treeName;                 ///< Name of output tree
     std::string             m_fileName;                 ///< Name of output file
 };
