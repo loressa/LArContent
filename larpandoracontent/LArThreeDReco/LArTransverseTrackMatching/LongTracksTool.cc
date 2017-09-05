@@ -9,6 +9,7 @@
 #include "Pandora/AlgorithmHeaders.h"
 
 #include "larpandoracontent/LArThreeDReco/LArTransverseTrackMatching/LongTracksTool.h"
+#include "larpandoracontent/LArHelpers/LArEffectiveOverlapHelper.h"
 
 using namespace pandora;
 
@@ -19,7 +20,8 @@ LongTracksTool::LongTracksTool() :
     m_minMatchedFraction(0.9f),
     m_minMatchedSamplingPoints(20),
     m_minXOverlapFraction(0.9f),
-    m_minMatchedSamplingPointRatio(2)
+    m_minMatchedSamplingPointRatio(2),
+    m_useEffectiveOverlap(false)
 {
 }
 
@@ -72,7 +74,7 @@ bool LongTracksTool::Run(ThreeDTransverseTracksAlgorithm *const pAlgorithm, Tens
        std::cout << "----> Running Algorithm Tool: " << this->GetInstanceName() << ", " << this->GetType() << std::endl;
 
     ProtoParticleVector protoParticleVector;
-    this->FindLongTracks(overlapTensor, protoParticleVector);
+    this->FindLongTracks(pAlgorithm, overlapTensor, protoParticleVector);
 
     const bool particlesMade(pAlgorithm->CreateThreeDParticles(protoParticleVector));
     return particlesMade;
@@ -80,7 +82,7 @@ bool LongTracksTool::Run(ThreeDTransverseTracksAlgorithm *const pAlgorithm, Tens
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void LongTracksTool::FindLongTracks(const TensorType &overlapTensor, ProtoParticleVector &protoParticleVector) const
+void LongTracksTool::FindLongTracks(ThreeDTransverseTracksAlgorithm *const pAlgorithm, const TensorType &overlapTensor, ProtoParticleVector &protoParticleVector) const
 {
     ClusterSet usedClusters;
     ClusterVector sortedKeyClusters;
@@ -96,7 +98,7 @@ void LongTracksTool::FindLongTracks(const TensorType &overlapTensor, ProtoPartic
         overlapTensor.GetConnectedElements(pKeyCluster, true, elementList, nU, nV, nW);
 
         IteratorList iteratorList;
-        this->SelectLongElements(elementList, usedClusters, iteratorList);
+        this->SelectLongElements(pAlgorithm, elementList, usedClusters, iteratorList);
 
         // Check that elements are not directly connected and are significantly longer than any other directly connected elements
         for (IteratorList::const_iterator iIter = iteratorList.begin(), iIterEnd = iteratorList.end(); iIter != iIterEnd; ++iIter)
@@ -122,7 +124,7 @@ void LongTracksTool::FindLongTracks(const TensorType &overlapTensor, ProtoPartic
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void LongTracksTool::SelectLongElements(const TensorType::ElementList &elementList, const pandora::ClusterSet &usedClusters,
+void LongTracksTool::SelectLongElements(ThreeDTransverseTracksAlgorithm *const pAlgorithm, const TensorType::ElementList &elementList, const pandora::ClusterSet &usedClusters,
     IteratorList &iteratorList) const
 {
     for (TensorType::ElementList::const_iterator eIter = elementList.begin(); eIter != elementList.end(); ++eIter)
@@ -136,14 +138,26 @@ void LongTracksTool::SelectLongElements(const TensorType::ElementList &elementLi
         if (eIter->GetOverlapResult().GetNMatchedSamplingPoints() < m_minMatchedSamplingPoints)
             continue;
 
-        const XOverlap &xOverlap(eIter->GetOverlapResult().GetXOverlap());
-
-        if ((xOverlap.GetXSpanU() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanU() > m_minXOverlapFraction) &&
-            (xOverlap.GetXSpanV() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanV() > m_minXOverlapFraction) &&
-            (xOverlap.GetXSpanW() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanW() > m_minXOverlapFraction))
-        {
-            iteratorList.push_back(eIter);
-        }
+		if (m_useEffectiveOverlap)
+		{
+			const XOverlap &xEffectiveOverlap(LArEffectiveOverlapHelper::CalculateEffectiveOverlap(pAlgorithm, *eIter).GetXOverlap());
+			if ((xEffectiveOverlap.GetXSpanU() > std::numeric_limits<float>::epsilon()) && (xEffectiveOverlap.GetXOverlapSpan() / xEffectiveOverlap.GetXSpanU() > m_minXOverlapFraction) &&
+				(xEffectiveOverlap.GetXSpanV() > std::numeric_limits<float>::epsilon()) && (xEffectiveOverlap.GetXOverlapSpan() / xEffectiveOverlap.GetXSpanV() > m_minXOverlapFraction) &&
+				(xEffectiveOverlap.GetXSpanW() > std::numeric_limits<float>::epsilon()) && (xEffectiveOverlap.GetXOverlapSpan() / xEffectiveOverlap.GetXSpanW() > m_minXOverlapFraction))
+			{
+				iteratorList.push_back(eIter);
+			}
+		}
+		else
+		{
+			const XOverlap &xOverlap(eIter->GetOverlapResult().GetXOverlap());
+			if ((xOverlap.GetXSpanU() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanU() > m_minXOverlapFraction) &&
+				(xOverlap.GetXSpanV() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanV() > m_minXOverlapFraction) &&
+				(xOverlap.GetXSpanW() > std::numeric_limits<float>::epsilon()) && (xOverlap.GetXOverlapSpan() / xOverlap.GetXSpanW() > m_minXOverlapFraction))
+			{
+				iteratorList.push_back(eIter);
+			}
+		}
     }
 }
 
@@ -162,6 +176,9 @@ StatusCode LongTracksTool::ReadSettings(const TiXmlHandle xmlHandle)
 
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
         "MinMatchedSamplingPointRatio", m_minMatchedSamplingPointRatio));
+
+	PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle,
+		"UseEffectiveOverlap", m_useEffectiveOverlap));
 
     return STATUS_CODE_SUCCESS;
 }

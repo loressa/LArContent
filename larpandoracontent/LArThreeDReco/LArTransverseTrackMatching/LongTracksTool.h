@@ -56,7 +56,7 @@ private:
      *  @param  overlapTensor the overlap tensor
      *  @param  protoParticleVector to receive the list of proto particles
      */
-    void FindLongTracks(const TensorType &overlapTensor, ProtoParticleVector &protoParticleVector) const;
+    void FindLongTracks(ThreeDTransverseTracksAlgorithm *const pAlgorithm, const TensorType &overlapTensor, ProtoParticleVector &protoParticleVector) const;
 
     /**
      *  @brief  Select a list of long track-like elements from a set of connected tensor elements
@@ -65,13 +65,14 @@ private:
      *  @param  usedClusters the list of clusters already marked as to be added to a pfo
      *  @param  iteratorList to receive a list of iterators to long track-like elements
      */
-    void SelectLongElements(const TensorType::ElementList &elementList, const pandora::ClusterSet &usedClusters,
-        IteratorList &iteratorList) const;
+    void SelectLongElements(ThreeDTransverseTracksAlgorithm *const pAlgorithm, const TensorType::ElementList &elementList,
+		const pandora::ClusterSet &usedClusters, IteratorList &iteratorList) const;
 
     float           m_minMatchedFraction;               ///< The min matched sampling point fraction for particle creation
     unsigned int    m_minMatchedSamplingPoints;         ///< The min number of matched sampling points for particle creation
     float           m_minXOverlapFraction;              ///< The min x overlap fraction (in each view) for particle creation
     unsigned int    m_minMatchedSamplingPointRatio;     ///< The min ratio between 1st and 2nd highest msps for simple ambiguity resolution
+	bool            m_useEffectiveOverlap;
 };
 
 } // namespace lar_content
