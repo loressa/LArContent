@@ -158,6 +158,8 @@
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/BranchSplittingAlgorithm.h"
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/CrossedTrackSplittingAlgorithm.h"
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/DeltaRaySplittingAlgorithm.h"
+#include "larpandoracontent/LArTwoDReco/LArClusterSplitting/JumpInChargeSplittingAlgorithm.h"
+#include "larpandoracontent/LArTwoDReco/LArClusterSplitting/KinkInXSplittingAlgorithm.h"
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/KinkSplittingAlgorithm.h"
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/LayerSplittingAlgorithm.h"
 #include "larpandoracontent/LArTwoDReco/LArClusterSplitting/OvershootSplittingAlgorithm.h"
@@ -180,8 +182,6 @@
 
 #define LAR_ALGORITHM_LIST(d)                                                                                                   \
     d("LArEventValidation",                     EventValidationAlgorithm)                                                       \
-    d("LArTestBeamEventValidation",             TestBeamEventValidationAlgorithm)                                               \
-    d("LArTestBeamHierarchyEventValidation",    TestBeamHierarchyEventValidationAlgorithm)                                      \
     d("LArPfoValidation",                       PfoValidationAlgorithm)                                                         \
     d("LArMCParticleMonitoring",                MCParticleMonitoringAlgorithm)                                                  \
     d("LArVisualMonitoring",                    VisualMonitoringAlgorithm)                                                      \
@@ -253,6 +253,8 @@
     d("LArBranchSplitting",                     BranchSplittingAlgorithm)                                                       \
     d("LArCrossedTrackSplitting",               CrossedTrackSplittingAlgorithm)                                                 \
     d("LArDeltaRaySplitting",                   DeltaRaySplittingAlgorithm)                                                     \
+    d("LArJumpInChargeSplitting",               JumpInChargeSplittingAlgorithm)                                                 \
+    d("LArKinkInXSplitting",                    KinkInXSplittingAlgorithm)                                                      \
     d("LArKinkSplitting",                       KinkSplittingAlgorithm)                                                         \
     d("LArLayerSplitting",                      LayerSplittingAlgorithm)                                                        \
     d("LArOvershootSplitting",                  OvershootSplittingAlgorithm)                                                    \
